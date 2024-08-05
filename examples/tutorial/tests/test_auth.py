@@ -1,7 +1,7 @@
 import pytest
 from flask import g
 from flask import session
-
+from werkzeug.security import check_password_hash
 from flaskr.db import get_db
 
 
@@ -10,30 +10,31 @@ def test_register(client, app):
     assert client.get("/auth/register").status_code == 200
 
     # test that successful registration redirects to the login page
-    response = client.post("/auth/register", data={"username": "a", "password": "a"})
+    response = client.post("/auth/register", data={"username": "a", "password": "b"})
     assert response.headers["Location"] == "/auth/login"
 
     # test that the user was inserted into the database
     with app.app_context():
-        assert (
-            get_db().execute("SELECT * FROM user WHERE username = 'a'").fetchone()
-            is not None
-        )
+        
+           usuario = get_db().execute("SELECT * FROM user WHERE username = 'a'").fetchone()
+           assert(usuario is not None) 
+           assert (check_password_hash(usuario["password"],"b"))
+        
 
 
 @pytest.mark.parametrize(
     ("username", "password", "message"),
     (
-        ("", "", b"Username is required."),
-        ("a", "", b"Password is required."),
-        ("test", "test", b"already registered"),
+        ("", "", "Nombre de usuario es requerido."),
+        ("a", "", "Contraseña es requerida."),
+        ("test", "test", " ya esta registrado"),
     ),
 )
 def test_register_validate_input(client, username, password, message):
     response = client.post(
         "/auth/register", data={"username": username, "password": password}
     )
-    assert message in response.data
+    assert message in response.data.decode()
 
 
 def test_login(client, auth):
@@ -54,11 +55,11 @@ def test_login(client, auth):
 
 @pytest.mark.parametrize(
     ("username", "password", "message"),
-    (("a", "test", b"Incorrect username."), ("test", "a", b"Incorrect password.")),
+    (("a", "test", "Nombre de usuario incorrecto"), ("test", "a", "Contraseña incorrecta")),
 )
 def test_login_validate_input(auth, username, password, message):
     response = auth.login(username, password)
-    assert message in response.data
+    assert message in response.data.decode()
 
 
 def test_logout(client, auth):
